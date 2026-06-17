@@ -53,6 +53,7 @@ import com.alextim.lora.client.ble.constants.ConnectionStats;
 import com.alextim.lora.client.ble.constants.DeviceConnection;
 import com.alextim.lora.service.FileLogger;
 import com.alextim.lora.service.MessageProcessingService;
+import com.alextim.lora.service.protocol.BleProtocolParser;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -290,7 +291,7 @@ public class BluetoothService extends BluetoothServiceBase {
 
         BluetoothGatt gatt = device.connectGatt(this, true, createDeviceSpecificCallback(deviceAddress));
 
-        DeviceConnection conn = new DeviceConnection(gatt,  new ConnectionStats(), device);
+        DeviceConnection conn = new DeviceConnection(gatt, device, new ConnectionStats());
 
         activeConnections.put(deviceAddress, conn);
 
@@ -469,12 +470,13 @@ public class BluetoothService extends BluetoothServiceBase {
                     return;
                 }
 
-                FileLogger.d(TAG, "onCharacteristicChanged called for device: " + deviceAddress + bytesToHex(characteristic.getValue()));
-/*                byte[] data = characteristic.getValue();
+                FileLogger.d(TAG, "onCharacteristicChanged called for device: " + deviceAddress);
+                byte[] data = characteristic.getValue();
                 if (data.length != 0) {
-                    BleProtocolParser.addData(data);
-                    BleProtocolParser.handle(deviceAwareConsumer, deviceAddress);
-                }*/
+                    BleProtocolParser parser = conn.getProtocolParser();
+                    parser.addData(data);
+                    parser.handle(deviceAwareConsumer, deviceAddress);
+                }
             }
 
             @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
