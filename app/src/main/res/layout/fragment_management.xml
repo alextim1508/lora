@@ -11,21 +11,42 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <!-- Spinner для выбора активного устройства -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:text="Active Device:" />
+
+            <Spinner
+                android:id="@+id/activeDeviceSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp" />
+
+        </LinearLayout>
+
         <!-- Status Indicator -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Status:"
+                android:layout_marginEnd="8dp"
+                android:text="Status (Active Device):"
                 android:textSize="14sp"
-                android:textStyle="bold"
-                android:layout_marginEnd="8dp"/>
+                android:textStyle="bold" />
 
             <ImageView
                 android:id="@+id/statusIndicator"
@@ -44,13 +65,37 @@
 
         </LinearLayout>
 
+        <!-- Response Code Display -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Response Code (Active Device)"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/responseCodeLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:text="Code: --"
+                android:textSize="14sp" />
+        </LinearLayout>
+
         <!-- CMD_GET_VERSION -->
         <Button
             android:id="@+id/sendGetVersionButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:text="Get Version" />
+            android:text="Get Version (Active Device)" />
 
         <!-- Version Display -->
         <TextView
@@ -61,15 +106,13 @@
             android:text="Version: --"
             android:textSize="14sp" />
 
-
-
         <!-- CMD_GET_CONFIGURATION -->
         <Button
             android:id="@+id/sendGetConfigButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:text="Get Config" />
+            android:text="Get Config (Active Device)" />
 
         <!-- CMD_SET_CONFIGURATION -->
         <Button
@@ -77,7 +120,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:text="Set Config" />
+            android:text="Set Config (Active Device)" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -152,7 +195,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                android:text="Device Status"
+                android:text="Device Status (Active Device)"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -171,31 +214,6 @@
                 android:layout_marginBottom="4dp"
                 android:text="Temperature: -- °C"
                 android:textSize="14sp" />
-
-        </LinearLayout>
-
-        <!-- Response Code Display -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:text="Response Code"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/responseCodeLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="Code: --"
-                android:textSize="14sp"/>
         </LinearLayout>
 
         <!-- CMD_RESTART -->
@@ -204,8 +222,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:text="Restart" />
-
+            android:text="Restart (Active Device)" />
     </LinearLayout>
 
 </androidx.core.widget.NestedScrollView>

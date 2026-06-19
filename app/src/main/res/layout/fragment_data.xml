@@ -1,173 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     android:padding="16dp">
 
-    <LinearLayout
+    <!-- Checkbox для отправки -->
+    <CheckBox
+        android:id="@+id/senderCheckBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_marginBottom="16dp"
+        android:text="Sender" />
 
-        <!-- Checkbox для отправки -->
-        <CheckBox
-            android:id="@+id/senderCheckBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:text="Sender" />
+    <!-- Spinner для выбора режима -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:text="Mode:" />
 
-        <!-- Spinner для выбора режима -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="4dp"
-            android:text="Mode:" />
+    <Spinner
+        android:id="@+id/testModeSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp" />
 
-        <Spinner
-            android:id="@+id/testModeSpinner"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp" />
+    <!-- Кнопка сброса статистики -->
+    <Button
+        android:id="@+id/resetStatsButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="Reset Statistics (All Devices)" />
 
-        <!-- Кнопка сброса статистики -->
-        <Button
-            android:id="@+id/resetStatsButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:text="Reset Statistics" />
+    <!-- Заголовок для списка устройств -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="Connected Devices Info:"
+        android:textStyle="bold" />
 
-        <!-- Отображение статистики -->
-        <TextView
-            android:id="@+id/testStatsTextView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:background="#F0F0F0"
-            android:padding="12dp"
-            android:text="Statistics"
-            android:textColor="#333333"
-            android:textSize="14sp" />
+    <!-- ScrollView для списка информации по устройствам -->
+    <ScrollView
+        android:id="@+id/devicesInfoScrollView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#F9F9F9"
+        android:padding="8dp">
 
-        <!-- Кнопка получения LoRa RSSI -->
-        <Button
-            android:id="@+id/getLoraRssiButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:text="Get LoRa RSSI" />
-
-        <!-- Отображение LoRa RSSI -->
         <LinearLayout
+            android:id="@+id/devicesInfoContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
             android:orientation="vertical">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:text="LoRa RSSI"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/noiseRssiLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="Noise: -- dBm"
-                android:textSize="14sp" />
-
-            <TextView
-                android:id="@+id/receiveDataRssiLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="Last received msg: -- dBm"
-                android:textSize="14sp" />
-
-        </LinearLayout>
-
-        <!-- Кнопка отправки одиночного сообщения -->
-        <Button
-            android:id="@+id/sendTestDataButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:text="Send Single Message" />
-
-        <EditText
-            android:id="@+id/sendDataEditText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:hint="Data to send"
-            android:inputType="text" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="8dp"
-            android:text="Received Messages:"
-            android:textStyle="bold" />
-
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="4dp"
-            app:cardElevation="2dp">
-
-            <ScrollView
-                android:id="@+id/scrollViewContainer"
+                android:id="@+id/devicesInfoPlaceholder"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:padding="8dp"
-                android:background="#FFFFFF">
-
-                <TextView
-                    android:id="@+id/receivedMessagesTextView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:maxLines="100"
-                    android:minLines="1"
-                    android:scrollbars="vertical"
-                    android:text="No messages yet..."
-                    android:textColor="#000000"
-                    android:textSize="12sp" />
-
-            </ScrollView>
-        </androidx.cardview.widget.CardView>
-
-        <!-- Response Code Display -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:text="Response Code"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:text="No devices connected yet..."
+                android:textColor="#888888"
+                android:textSize="12sp" />
 
-            <TextView
-                android:id="@+id/responseCodeLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="4dp"
-                android:text="Code: --"
-                android:textSize="14sp"/>
         </LinearLayout>
 
-    </LinearLayout>
+    </ScrollView>
 
-</androidx.core.widget.NestedScrollView>
+</LinearLayout>
