@@ -1,13 +1,17 @@
 package com.alextim.lora.service.message;
 
 
+import static com.alextim.lora.service.message.Commands.CMD_GET_DEVICE_CONFIGURATION;
 import static com.alextim.lora.service.message.Commands.CMD_SET_CONFIGURATION;
+import static com.alextim.lora.service.message.Commands.CMD_SET_DEVICE_CONFIGURATION;
 
 import com.alextim.lora.client.ble.BleMessage;
+import com.alextim.lora.service.protocol.ConfigByteUtils;
 import com.alextim.lora.service.protocol.PacketTypes;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 
 public class BleMessages {
 
@@ -48,32 +52,50 @@ public class BleMessages {
     }
 
     public static class SetConfigurationCommand extends BleMessage {
+        public static final int LORA_NAME_MAX_LENGTH_BYTES = 16;
 
-        public final byte loraType;
+        public final byte version;
         public final byte loraPowerIndex;
         public final byte loraRateIndex;
         public final byte loraChannelIndex;
+        public final String loraName;
 
-        public SetConfigurationCommand(byte loraType, byte loraPowerIndex, byte loraRateIndex, byte loraChannelIndex) {
-            super(PacketTypes.COMMANDS, CMD_SET_CONFIGURATION, calcLen(), createDataBytes(loraType, loraPowerIndex, loraRateIndex, loraChannelIndex), 0);
-            this.loraType = loraType;
+        public SetConfigurationCommand(String loraName, byte version, byte loraPowerIndex, byte loraRateIndex, byte loraChannelIndex) {
+            super(PacketTypes.COMMANDS, CMD_SET_CONFIGURATION, calcLen(),
+                    createDataBytes(loraName.getBytes(StandardCharsets.US_ASCII), version, loraPowerIndex, loraRateIndex, loraChannelIndex), 0);
+            this.version = version;
             this.loraPowerIndex = loraPowerIndex;
             this.loraRateIndex = loraRateIndex;
             this.loraChannelIndex = loraChannelIndex;
+            this.loraName = loraName;
         }
 
         private static byte calcLen() {
-            return 5;
+            return (byte) (1 /* version */ + 3 /* power, rate, channel */ + LORA_NAME_MAX_LENGTH_BYTES);
         }
 
-        private static byte[] createDataBytes(byte loraType, byte loraPowerIndex, byte loraRateIndex, byte loraChannelIndex) {
-            return new byte[]{
-                    1, loraType, loraPowerIndex, loraRateIndex, loraChannelIndex};
+        private static byte[] createDataBytes(byte[] loraNameBytes, byte version, byte loraPowerIndex, byte loraRateIndex, byte loraChannelIndex) {
+            byte[] data = new byte[calcLen()];
+
+            int idx = 0;
+            data[idx++] = version;
+            data[idx++] = loraPowerIndex;
+            data[idx++] = loraRateIndex;
+            data[idx++] = loraChannelIndex;
+
+            System.arraycopy(loraNameBytes, 0, data, idx, Math.min(loraNameBytes.length, LORA_NAME_MAX_LENGTH_BYTES));
+            return data;
         }
 
         @Override
         public String toString() {
-            return "CMD_SET_CONFIGURATION";
+            return "CMD_SET_CONFIGURATION{" +
+                    "loraName='" + loraName + '\'' +
+                    ", version=" + version +
+                    ", loraPowerIndex=" + loraPowerIndex +
+                    ", loraRateIndex=" + loraRateIndex +
+                    ", loraChannelIndex=" + loraChannelIndex +
+                    '}';
         }
     }
 
@@ -100,6 +122,44 @@ public class BleMessages {
         @Override
         public String toString() {
             return "CMD_SEND_DATA";
+        }
+    }
+
+    public static class SetDeviceConfigurationCommand extends BleMessage {
+
+        public final byte configByte;
+
+        public SetDeviceConfigurationCommand(byte configByte) {
+            super(PacketTypes.COMMANDS, CMD_SET_DEVICE_CONFIGURATION, calcLen(), createDataBytes(configByte), 0);
+            this.configByte = configByte;
+        }
+
+        public SetDeviceConfigurationCommand(boolean deviceType, boolean transmitMode, boolean echoEnabled, int packetLength) {
+            this(ConfigByteUtils.buildConfigByte(deviceType, transmitMode, echoEnabled, packetLength));
+        }
+
+        private static byte calcLen() {
+            return 1;
+        }
+
+        private static byte[] createDataBytes(byte configByte) {
+            return new byte[]{configByte};
+        }
+
+        @Override
+        public String toString() {
+            return "CMD_SET_DEVICE_CONFIGURATION";
+        }
+    }
+
+    public static class GetDeviceConfigurationCommand extends BleMessage {
+        public GetDeviceConfigurationCommand() {
+            super(PacketTypes.COMMANDS, CMD_GET_DEVICE_CONFIGURATION, (byte) 0, new byte[0], 0);
+        }
+
+        @Override
+        public String toString() {
+            return "CMD_GET_DEVICE_CONFIGURATION";
         }
     }
 
@@ -152,6 +212,18 @@ public class BleMessages {
         }
     }
 
+    public static class GenerateDataEvent extends BleMessage {
+
+        public GenerateDataEvent(byte[] data, long timestamp) {
+            super(PacketTypes.EVENTS, Events.EVENT_GENERATE_DATA, (byte) (data != null ? data.length : 0), data, timestamp);
+        }
+
+        @Override
+        public String toString() {
+            return "ENT_GENERATE_DATA";
+        }
+    }
+
     // === RESPONSES (ответы на команды, тип = код команды) ===
 
     public static class GetVersionResponse extends BleMessage {
@@ -171,24 +243,37 @@ public class BleMessages {
 
     public static class GetConfigurationResponse extends BleMessage {
 
+        public static final int LORA_NAME_START_INDEX = 4;
+        public static final int LORA_NAME_LENGTH = 16;
+
         public final byte version;
-        public final byte loraType;
         public final byte loraPowerIndex;
         public final byte loraRateIndex;
         public final byte loraChannelIndex;
+        public final String loraName;
 
         public GetConfigurationResponse(byte[] data, byte errorCode, long timestamp) {
             super(Commands.CMD_GET_CONFIGURATION, errorCode, (byte) (data != null ? data.length : 0), data, timestamp);
             version = data[0];
-            loraType = data[1];
-            loraPowerIndex = data[2];
-            loraRateIndex = data[3];
-            loraChannelIndex = data[4];
+            loraPowerIndex = data[1];
+            loraRateIndex = data[2];
+            loraChannelIndex = data[3];
+
+            byte[] nameBytes = new byte[LORA_NAME_LENGTH];
+            System.arraycopy(data, LORA_NAME_START_INDEX, nameBytes, 0, LORA_NAME_LENGTH);
+            String rawName = new String(nameBytes, StandardCharsets.US_ASCII);
+            loraName = rawName.replace("\0", "").trim();
         }
 
         @Override
         public String toString() {
-            return "CMD_GET_CONFIGURATION_RESPONSE";
+            return "GetConfigurationResponse{" +
+                    "version=" + version +
+                    ", loraPowerIndex=" + loraPowerIndex +
+                    ", loraRateIndex=" + loraRateIndex +
+                    ", loraChannelIndex=" + loraChannelIndex +
+                    ", loraName='" + loraName + '\'' +
+                    '}';
         }
     }
 
@@ -241,6 +326,37 @@ public class BleMessages {
         @Override
         public String toString() {
             return "CMD_SEND_DATA_RESPONSE";
+        }
+    }
+
+    public static class SetDeviceConfigurationResponse extends BleMessage {
+
+        public SetDeviceConfigurationResponse(byte[] data, byte errorCode, long timestamp) {
+            super(CMD_SET_DEVICE_CONFIGURATION, errorCode, (byte) (data != null ? data.length : 0), data, timestamp);
+        }
+
+        @Override
+        public String toString() {
+            return "CMD_SET_DEVICE_CONFIGURATION_RESPONSE";
+        }
+    }
+
+    public static class GetDeviceConfigurationResponse extends BleMessage {
+
+        public final byte configByte;
+
+        public GetDeviceConfigurationResponse(byte[] data, byte errorCode, long timestamp) {
+            super(CMD_GET_DEVICE_CONFIGURATION, errorCode, (byte) (data != null ? data.length : 0), data, timestamp);
+            if (data != null && data.length >= 1) {
+                this.configByte = data[0];
+            } else {
+                this.configByte = 0;
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "CMD_GET_DEVICE_CONFIGURATION_RESPONSE";
         }
     }
 

@@ -12,12 +12,15 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.alextim.lora.client.ble.BleMessage;
 import com.alextim.lora.service.message.BleMessages;
+import com.alextim.lora.service.message.BleMessages.GenerateDataEvent;
 import com.alextim.lora.service.message.BleMessages.GetConfigurationResponse;
+import com.alextim.lora.service.message.BleMessages.GetDeviceConfigurationResponse;
 import com.alextim.lora.service.message.BleMessages.GetLoraRssiResponse;
 import com.alextim.lora.service.message.BleMessages.GetVersionResponse;
 import com.alextim.lora.service.message.BleMessages.ReceiveDataEvent;
 import com.alextim.lora.service.message.BleMessages.SendDataResponse;
 import com.alextim.lora.service.message.BleMessages.SetConfigurationResponse;
+import com.alextim.lora.service.message.BleMessages.SetDeviceConfigurationResponse;
 import com.alextim.lora.service.message.BleMessages.StatusEvent;
 
 public class MessageProcessingService {
@@ -46,12 +49,18 @@ public class MessageProcessingService {
             intent = createSendDataResponseIntent((SendDataResponse) parsed);
         } else if (parsed instanceof ReceiveDataEvent) {
             intent = createReceiveDataEventIntent((ReceiveDataEvent) parsed);
+        } else if (parsed instanceof GenerateDataEvent) {
+            intent = createGenerateDataEventIntent();
         } else if (parsed instanceof StatusEvent) {
             intent = createStatusEventIntent((StatusEvent) parsed);
         } else if (parsed instanceof GetVersionResponse) {
             intent = createGetVersionResponseIntent((GetVersionResponse) parsed);
         } else if (parsed instanceof GetLoraRssiResponse) {
             intent = createGetLoraRssiResponseIntent((GetLoraRssiResponse) parsed);
+        } else if (parsed instanceof GetDeviceConfigurationResponse) {
+            intent = createGetDeviceConfigResponseIntent((GetDeviceConfigurationResponse) parsed);
+        } else if (parsed instanceof SetDeviceConfigurationResponse) {
+            intent = createSetDeviceConfigResponseIntent((SetDeviceConfigurationResponse) parsed);
         } else if (parsed instanceof BleMessages.ErrorMessage) {
             Log.e(TAG, "Error parsing message from device " + deviceAddress + ": " + parsed);
             return;
@@ -72,7 +81,7 @@ public class MessageProcessingService {
 
     private Intent createGetConfigResponseIntent(GetConfigurationResponse answer) {
         Intent intent = new Intent(ACTION_GET_CONFIG_RESPONSE);
-        intent.putExtra(EXTRA_LORA_TYPE, answer.loraType);
+        intent.putExtra(EXTRA_LORA_NAME, answer.loraName);
         intent.putExtra(EXTRA_POWER_INDEX, answer.loraPowerIndex);
         intent.putExtra(EXTRA_RATE_INDEX, answer.loraRateIndex);
         intent.putExtra(EXTRA_CHANNEL_INDEX, answer.loraChannelIndex);
@@ -110,6 +119,23 @@ public class MessageProcessingService {
         Intent intent = new Intent(ACTION_STATUS_EVENT);
         intent.putExtra(EXTRA_VOLTAGE, event.voltage);
         intent.putExtra(EXTRA_TEMPERATURE, event.temperature);
+        return intent;
+    }
+
+    private Intent createGenerateDataEventIntent() {
+        return new Intent(ACTION_GENERATE_DATA_EVENT);
+    }
+
+    private Intent createGetDeviceConfigResponseIntent(GetDeviceConfigurationResponse answer) {
+        Intent intent = new Intent(ACTION_GET_DEVICE_CONFIG_RESPONSE);
+        intent.putExtra(EXTRA_CONFIG_BYTE, answer.configByte);
+        intent.putExtra(EXTRA_ERROR_CODE, answer.param);
+        return intent;
+    }
+
+    private Intent createSetDeviceConfigResponseIntent(SetDeviceConfigurationResponse answer) {
+        Intent intent = new Intent(ACTION_SET_DEVICE_CONFIG_RESPONSE);
+        intent.putExtra(EXTRA_ERROR_CODE, answer.param);
         return intent;
     }
 }

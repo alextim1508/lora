@@ -23,6 +23,8 @@ public class BleMessageParser {
                 return new BleMessages.StatusEvent(data, timestamp);
             } else if (param == Events.EVENT_RECEIVE_DATA) {
                 return new BleMessages.ReceiveDataEvent(data, timestamp);
+            } else if (param == Events.EVENT_GENERATE_DATA) {
+                return new BleMessages.GenerateDataEvent(data, timestamp);
             }
         } else if (type == PacketTypes.COMMANDS) {
             if (param == Commands.CMD_GET_VERSION) {
@@ -32,15 +34,23 @@ public class BleMessageParser {
             } else if (param == Commands.CMD_GET_CONFIGURATION) {
                 return new BleMessages.GetConfigurationCommand();
             } else if (param == Commands.CMD_SET_CONFIGURATION) {
+                byte[] nameBytes = new byte[BleMessages.SetConfigurationCommand.LORA_NAME_MAX_LENGTH_BYTES];
+                System.arraycopy(bleMessage.data, 4, nameBytes, 0, BleMessages.SetConfigurationCommand.LORA_NAME_MAX_LENGTH_BYTES);
+                String loraName = new String(nameBytes, java.nio.charset.StandardCharsets.US_ASCII).replace("\0", "").trim();
                 return new BleMessages.SetConfigurationCommand(
+                        loraName,
+                        bleMessage.data[0],
                         bleMessage.data[1],
                         bleMessage.data[2],
-                        bleMessage.data[3],
-                        bleMessage.data[4]);
+                        bleMessage.data[3]);
             } else if (param == Commands.CMD_GET_LORA_RSSI) {
                 return new BleMessages.GetLoraRssiCommand();
             } else if (param == Commands.CMD_SEND_DATA) {
                 return new BleMessages.SendDataCommand(data);
+            } else if (param == Commands.CMD_SET_DEVICE_CONFIGURATION) {
+                return new BleMessages.SetDeviceConfigurationCommand(data != null && data.length > 0 ? data[0] : 0);
+            } else if (param == Commands.CMD_GET_DEVICE_CONFIGURATION) {
+                return new BleMessages.GetDeviceConfigurationCommand();
             }
         } else {
             if (type == Commands.CMD_GET_VERSION) {
@@ -53,6 +63,10 @@ public class BleMessageParser {
                 return new BleMessages.GetLoraRssiResponse(data, bleMessage.param, timestamp);
             } else if (type == Commands.CMD_SEND_DATA) {
                 return new BleMessages.SendDataResponse(data, bleMessage.param, timestamp);
+            } else if (type == Commands.CMD_SET_DEVICE_CONFIGURATION) {
+                return new BleMessages.SetDeviceConfigurationResponse(data, bleMessage.param, timestamp);
+            } else if (type == Commands.CMD_GET_DEVICE_CONFIGURATION) {
+                return new BleMessages.GetDeviceConfigurationResponse(data, bleMessage.param, timestamp);
             }
         }
 

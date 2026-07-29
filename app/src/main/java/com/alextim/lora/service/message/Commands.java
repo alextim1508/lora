@@ -7,5 +7,7 @@ public class Commands {
     public static final byte CMD_GET_CONFIGURATION = (byte) 0x20;
     public static final byte CMD_SET_CONFIGURATION = (byte) 0x30;
     public static final byte CMD_SEND_DATA = (byte) 0x40;
+    public static final byte CMD_SET_DEVICE_CONFIGURATION = (byte) 0x41;
+    public static final byte CMD_GET_DEVICE_CONFIGURATION = (byte) 0x42;
     public static final byte CMD_GET_LORA_RSSI = (byte) 0x50;
 }
