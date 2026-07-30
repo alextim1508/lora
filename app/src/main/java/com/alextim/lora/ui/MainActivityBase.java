@@ -102,7 +102,7 @@ public abstract class BluetoothSetupActivityBase extends AppCompatActivity {
                 recreate();
             } else {
                 Log.w(TAG, "All files access permission NOT granted via settings.");
-                Toast.makeText(this, "All files access permission is required to save DB files to Downloads folder.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Для сохранения файлов БД в папку Загрузки требуется разрешение на доступ ко всем файлам.", Toast.LENGTH_LONG).show();
             }
         }
     }
@@ -124,7 +124,7 @@ public abstract class BluetoothSetupActivityBase extends AppCompatActivity {
                 Log.d(TAG, "Bluetooth/Location/Notifications permissions granted");
                 recreate(); // Перезапуск активити для корректной инициализации
             } else {
-                Toast.makeText(this, "Permissions required for Bluetooth and notifications operation", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Для работы Bluetooth и уведомлений требуются разрешения", Toast.LENGTH_LONG).show();
             }
         }
     }

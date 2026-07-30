@@ -102,15 +102,6 @@ public class BluetoothService extends BluetoothServiceBase {
                         break;
                     case BluetoothAdapter.STATE_ON:
                         FileLogger.d(TAG, "Bluetooth Adapter is ON.");
-
-                        // if (connectionPersistence.hasAnyLastDevice() && !connectionPersistence.isUserInitiatedDisconnectForAll()) {
-                        //     Set<String> lastAddresses = connectionPersistence.getLastDeviceAddresses();
-                        //     for(String addr : lastAddresses) {
-                        //         if(!connectionPersistence.isUserInitiatedDisconnect(addr)) {
-                        //             connectToDevice(addr);
-                        //         }
-                        //     }
-                        // }
                         break;
                 }
             }
@@ -153,15 +144,6 @@ public class BluetoothService extends BluetoothServiceBase {
         FileLogger.d(TAG, "BluetoothService created");
 
         registerReceivers();
-
-        // if (connectionPersistence.hasAnyLastDevice() && !connectionPersistence.isUserInitiatedDisconnectForAll()) {
-        //     Set<String> lastAddresses = connectionPersistence.getLastDeviceAddresses();
-        //     for(String addr : lastAddresses) {
-        //         if(!connectionPersistence.isUserInitiatedDisconnect(addr)) {
-        //             connectToDevice(addr);
-        //         }
-        //     }
-        // }
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -212,7 +194,7 @@ public class BluetoothService extends BluetoothServiceBase {
                 BluetoothDevice device = result.getDevice();
                 if (device.getName() != null &&
                         !scannedDevices.contains(device) &&
-                        device.getName().toUpperCase().startsWith("SHARM")) { //todo
+                        device.getName().toUpperCase().startsWith("LORA")) {
 
                     synchronized (scannedDevices) {
                         scannedDevices.add(device);
@@ -319,10 +301,6 @@ public class BluetoothService extends BluetoothServiceBase {
         } else {
             FileLogger.d(TAG, "Attempted to disconnect from non-connected device: " + deviceAddress);
         }
-    }
-
-    public void setUserInitiatedDisconnect(String address, boolean res) {
-        connectionPersistence.setUserInitiatedDisconnect(address, res);
     }
 
     private BluetoothGattCallback createDeviceSpecificCallback(String deviceAddress) {
@@ -543,10 +521,8 @@ public class BluetoothService extends BluetoothServiceBase {
             Log.e(TAG, "GATT, writeCharacteristic, or message is null for device: " + deviceAddress);
             return false;
         }
-        Log.d(TAG, "Sending message to device " + deviceAddress + ": " + message.getClass().getSimpleName());
-        Log.d(TAG, "Sending bytes: " + bytesToHex(message.rawMessage));
+        Log.d(TAG, "Sending message to device " + deviceAddress + ": " + message);
         conn.getWriteCharacteristic().setValue(message.rawMessage);
-        conn.getWriteCharacteristic().setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
         boolean success = conn.getGatt().writeCharacteristic(conn.getWriteCharacteristic());
         if (success) {
             Log.d(TAG, "Write request sent successfully (no response expected) to device: " + deviceAddress);
@@ -565,6 +541,11 @@ public class BluetoothService extends BluetoothServiceBase {
     public boolean isConnectedToDevice(String deviceAddress) {
         DeviceConnection conn = activeConnections.get(deviceAddress);
         return conn != null && conn.isConnected() && conn.getGatt() != null;
+    }
+
+    public boolean isReadyToSendMessage(String deviceAddress) {
+        DeviceConnection conn = activeConnections.get(deviceAddress);
+        return conn != null && conn.isConnected() && conn.getGatt() != null && conn.getWriteCharacteristic() != null;
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -613,17 +594,7 @@ public class BluetoothService extends BluetoothServiceBase {
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    public List<String> getConnectedDeviceNames() {
-        List<String> names = new ArrayList<>();
-        for (String addr : activeConnections.keySet()) {
-            String name = getDeviceName(addr);
-            names.add(name != null ? name : addr);
-        }
-        return names;
-    }
-
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private String getDeviceName(String address) {
+    public String getDeviceName(String address) {
         DeviceConnection conn = activeConnections.get(address);
         if (conn != null && conn.getDevice() != null) {
             String name = conn.getDevice().getName();
@@ -640,9 +611,5 @@ public class BluetoothService extends BluetoothServiceBase {
         }
 
         return connectionPersistence.getLastDeviceName(address);
-    }
-
-    public BleConnectionStatus getConnectionStatusForDevice(String deviceAddress) {
-        return isConnectedToDevice(deviceAddress) ? CONNECTED : DISCONNECTED;
     }
 }

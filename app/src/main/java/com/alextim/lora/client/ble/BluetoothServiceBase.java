@@ -16,7 +16,7 @@ import androidx.annotation.RequiresPermission;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
-import com.alextim.lora.ui.BluetoothSetupActivity;
+import com.alextim.lora.ui.MainActivity;
 
 
 public abstract class BluetoothServiceBase extends Service {
@@ -32,12 +32,12 @@ public abstract class BluetoothServiceBase extends Service {
         createNotificationChannels();
 
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,
-                new Intent(this, BluetoothSetupActivity.class),
+                new Intent(this, MainActivity.class),
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_NOTIFICATION_ID)
                 .setSmallIcon(android.R.drawable.ic_notification_overlay)
-                .setContentTitle("Лора сервис запущен")
+                .setContentTitle("LoRa сервис запущен")
                 .setContentIntent(pendingIntent)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -74,11 +74,11 @@ public abstract class BluetoothServiceBase extends Service {
     private void showServiceStoppedNotification() {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_NOTIFICATION_ID)
                 .setSmallIcon(android.R.drawable.ic_notification_overlay)
-                .setContentTitle("Шрамэл сервис остановлен")
+                .setContentTitle("LoRa сервис остановлен")
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setAutoCancel(true);
 
-        Intent intent = new Intent(this, BluetoothSetupActivity.class);
+        Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 this,
