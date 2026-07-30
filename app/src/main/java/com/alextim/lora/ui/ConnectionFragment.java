@@ -25,18 +25,25 @@ import android.widget.*;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresPermission;
 import androidx.appcompat.app.AlertDialog;
+import androidx.fragment.app.Fragment;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.alextim.lora.R;
+import com.alextim.lora.client.ble.BluetoothService;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class ConnectionFragment extends ConfigFragment {
+
+public class ConnectionFragment extends Fragment {
 
     private static final String TAG = "ConnectionFragment";
+
+    private MainActivity parentActivity;
+    private BluetoothService bluetoothService;
 
     private ProgressBar scanProgressBar;
     private Button refreshButton;
@@ -66,10 +73,12 @@ public class ConnectionFragment extends ConfigFragment {
         }
     };
 
-
     @Override
     public void onAttach(@NonNull Context context) {
         super.onAttach(context);
+        if (context instanceof MainActivity) {
+            parentActivity = (MainActivity) context;
+        }
     }
 
     @Override
@@ -80,14 +89,22 @@ public class ConnectionFragment extends ConfigFragment {
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(connectionStatusReceiver, filter);
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (parentActivity != null && parentActivity.serviceBound) {
+            bluetoothService = parentActivity.bluetoothService;
+        }
+    }
+
     @RequiresPermission(allOf = {Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT})
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_connection, container, false); // Используем новую разметку
+        View view = inflater.inflate(R.layout.fragment_connection, container, false);
 
         initViews(view);
         setupAdapters();
-
+        setupListeners();
 
         return view;
     }
@@ -98,14 +115,13 @@ public class ConnectionFragment extends ConfigFragment {
         LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(connectionStatusReceiver);
     }
 
-    @RequiresPermission(allOf = {Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT})
-    @Override
-    void setupListeners() {
+    @RequiresPermission(allOf = {Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN})
+    private void setupListeners() {
         refreshButton.setOnClickListener(v -> {
             if (bluetoothService != null) {
                 showDeviceSelectionDialog(scanProgressBar);
             } else {
-                Toast.makeText(getContext(), "Service not bound", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), "Сервис не подключен", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -113,41 +129,16 @@ public class ConnectionFragment extends ConfigFragment {
             if (bluetoothService != null) {
                 bluetoothService.disconnectAllDevices();
             } else {
-                Toast.makeText(getContext(), "Service not bound", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), "Сервис не подключен", Toast.LENGTH_SHORT).show();
             }
         });
-
     }
 
-    void initViews(View view) {
+    private void initViews(View view) {
         scanProgressBar = view.findViewById(R.id.scanProgressBar);
         refreshButton = view.findViewById(R.id.refreshButton);
         disconnectAllButton = view.findViewById(R.id.disconnectAllButton);
         connectedDevicesListView = view.findViewById(R.id.connectedDevicesListView);
-    }
-
-    @Override
-    void registerBroadcastReceiver() {
-    }
-
-    @Override
-    void unregisterBroadcastReceiver() {
-    }
-
-    @Override
-    void updateUIFromService() {
-    }
-
-    @Override
-    void updateUIFromSettings() {
-    }
-
-    @Override
-    void saveCurrentState(Context context) {
-    }
-
-    @Override
-    void restoreState(Context context) {
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -155,15 +146,13 @@ public class ConnectionFragment extends ConfigFragment {
         connectedDevicesAdapter = new ConnectedDevicesAdapter(requireContext(), connectedDevicesList, (address) -> {
             if (bluetoothService != null) {
                 bluetoothService.disconnectDevice(address);
-                bluetoothService.setUserInitiatedDisconnect(address, true);
             } else {
-                Toast.makeText(getContext(), "Service not bound", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), "Сервис не подключен", Toast.LENGTH_SHORT).show();
             }
         });
         connectedDevicesListView.setAdapter(connectedDevicesAdapter);
     }
-
-
+    
     private void addConnectedDevice(String address, String name) {
         DeviceInfo newDevice = new DeviceInfo(address, name);
         if (!connectedDevicesList.contains(newDevice)) {
@@ -210,19 +199,14 @@ public class ConnectionFragment extends ConfigFragment {
             }, 5_000);
         } else {
 
-            Toast.makeText(getContext(), "Service not bound", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "Сервис не подключен", Toast.LENGTH_SHORT).show();
 
         }
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private void showMultiDeviceSelectionDialog(List<BluetoothDevice> devices) {
-        String[] deviceNames = new String[devices.size()];
-        for (int i = 0; i < devices.size(); i++) {
-            BluetoothDevice device = devices.get(i);
-            String name = device.getName() != null ? device.getName() : "Unknown Device";
-            deviceNames[i] = name + " (" + device.getAddress() + ")";
-        }
+        devices.sort(Comparator.comparing(BluetoothDevice::getAddress));
 
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         LayoutInflater inflater = getLayoutInflater();
@@ -247,11 +231,11 @@ public class ConnectionFragment extends ConfigFragment {
                 if (bluetoothService != null) {
                     bluetoothService.connectToMultipleDevices(selectedAddressList);
                 } else {
-                    Toast.makeText(getContext(), "Service not bound", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getContext(), "Сервис не подключен", Toast.LENGTH_LONG).show();
                 }
             } else {
                 Log.d(TAG, "No devices selected.");
-                Toast.makeText(getContext(), "No devices selected", Toast.LENGTH_LONG).show();
+                Toast.makeText(getContext(), "Устройства не выбраны", Toast.LENGTH_LONG).show();
             }
             dialog.dismiss();
         });
@@ -304,14 +288,14 @@ public class ConnectionFragment extends ConfigFragment {
         public View getView(int position, View convertView, @NonNull ViewGroup parent) {
             DeviceInfo device = getItem(position);
             if (convertView == null) {
-                convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_connected_device, parent, false); // Новая разметка для элемента списка
+                convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_connected_device, parent, false);
             }
 
             TextView nameView = convertView.findViewById(R.id.deviceNameTextView);
             TextView addressView = convertView.findViewById(R.id.deviceAddressTextView);
             Button disconnectButton = convertView.findViewById(R.id.disconnectButton);
 
-            nameView.setText(device.name != null ? device.name : "Unknown Device (" + device.address + ")");
+            nameView.setText(device.name != null ? device.name : "Неизвестное устройство (" + device.address + ")");
             addressView.setText(device.address);
 
             disconnectButton.setOnClickListener(v -> {
@@ -365,7 +349,7 @@ public class ConnectionFragment extends ConfigFragment {
             }
 
             BluetoothDevice device = devices.get(position);
-            String name = device.getName() != null ? device.getName() : "Unknown Device";
+            String name = device.getName() != null ? device.getName() : "Неизвестное устройство";
             String address = device.getAddress();
 
             holder.nameTextView.setText(name);

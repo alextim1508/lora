@@ -16,7 +16,7 @@
             android:id="@+id/deviceNameTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Device Name"
+            android:text="Имя устройства"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -24,7 +24,7 @@
             android:id="@+id/deviceAddressTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Device Address"
+            android:text="Адрес устройства"
             android:textSize="12sp"
             android:textColor="#666666" />
 
