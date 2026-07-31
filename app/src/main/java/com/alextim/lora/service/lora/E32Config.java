@@ -139,48 +139,48 @@ public class E32Config {
     }
 
     private static void fullPowerMapVariantA(Map<Integer, String> powerMap) {
-        powerMap.put(0, "20 dBm");
-        powerMap.put(1, "17 dBm");
-        powerMap.put(2, "14 dBm");
-        powerMap.put(3, "10 dBm");
+        powerMap.put(0, "20 дБм");
+        powerMap.put(1, "17 дБм");
+        powerMap.put(2, "14 дБм");
+        powerMap.put(3, "10 дБм");
     }
 
     private static void fullPowerMapVariantB(Map<Integer, String> powerMap) {
-        powerMap.put(0, "30 dBm");
-        powerMap.put(1, "27 dBm");
-        powerMap.put(2, "24 dBm");
-        powerMap.put(3, "21 dBm");
+        powerMap.put(0, "30 дБм");
+        powerMap.put(1, "27 дБм");
+        powerMap.put(2, "24 дБм");
+        powerMap.put(3, "21 дБм");
     }
 
     private static void fullPowerMapVariantC(Map<Integer, String> powerMap) {
-        powerMap.put(0, "33 dBm");
-        powerMap.put(1, "30 dBm");
-        powerMap.put(2, "27 dBm");
-        powerMap.put(3, "24 dBm");
+        powerMap.put(0, "33 дБм");
+        powerMap.put(1, "30 дБм");
+        powerMap.put(2, "27 дБм");
+        powerMap.put(3, "24 дБм");
     }
 
     private static void fullPowerMapVariantD(Map<Integer, String> powerMap) {
-        powerMap.put(0, "37 dBm");
-        powerMap.put(1, "37 dBm");
-        powerMap.put(2, "37 dBm");
-        powerMap.put(3, "37 dBm");
+        powerMap.put(0, "37 дБм");
+        powerMap.put(1, "37 дБм");
+        powerMap.put(2, "37 дБм");
+        powerMap.put(3, "37 дБм");
     }
 
     private static void fullChannelMapVariantA(Map<Integer, String> channelMap) {
         for (int i = 0; i < 55; i++) {
-            channelMap.put(i, "Channel " + i);
+            channelMap.put(i, "Канал " + i);
         }
     }
 
     private static void fullChannelMapVariantB(Map<Integer, String> channelMap) {
         for (int i = 0; i < 32; i++) {
-            channelMap.put(i, "Channel " + i);
+            channelMap.put(i, "Канал " + i);
         }
     }
 
     private static void fullChannelMapVariantC(Map<Integer, String> channelMap) {
         for (int i = 0; i < 70; i++) {
-            channelMap.put(i, "Channel " + i);
+            channelMap.put(i, "Канал " + i);
         }
     }
 }

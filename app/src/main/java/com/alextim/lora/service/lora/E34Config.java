@@ -77,29 +77,29 @@ public class E34Config {
     }
 
     private static void fullPowerMapVariantA(Map<Integer, String> powerMap) {
-        powerMap.put(0, "27 dBm");
-        powerMap.put(1, "21 dBm");
-        powerMap.put(2, "15 dBm");
-        powerMap.put(3, "9 dBm");
+        powerMap.put(0, "27 дБм");
+        powerMap.put(1, "21 дБм");
+        powerMap.put(2, "15 дБм");
+        powerMap.put(3, "9 дБм");
     }
 
     private static void fullPowerMapVariantB(Map<Integer, String> powerMap) {
-        powerMap.put(0, "20 dBm");
-        powerMap.put(1, "17 dBm");
-        powerMap.put(2, "14 dBm");
-        powerMap.put(3, "10 dBm");
+        powerMap.put(0, "20 дБм");
+        powerMap.put(1, "17 дБм");
+        powerMap.put(2, "14 дБм");
+        powerMap.put(3, "10 дБм");
     }
 
 
     private static void fullChannelMapVariantA(Map<Integer, String> channelMap) {
         for (int i = 0; i < 16; i++) {
-            channelMap.put(i, "Channel " + i);
+            channelMap.put(i, "Канал " + i);
         }
     }
 
     private static void fullChannelMapVariantB(Map<Integer, String> channelMap) {
         for (int i = 0; i < 12; i++) {
-            channelMap.put(i, "Channel " + i);
+            channelMap.put(i, "Канал " + i);
         }
     }
 }
