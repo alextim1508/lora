@@ -28,7 +28,7 @@ import com.alextim.lora.R;
 import com.alextim.lora.client.ble.BluetoothService;
 import com.alextim.lora.client.ble.BluetoothService.LocalBinder;
 
-public class BluetoothSetupActivity extends BluetoothSetupActivityBase {
+public class MainActivity extends MainActivityBase {
 
     BluetoothService bluetoothService;
     boolean serviceBound = false;
@@ -75,7 +75,7 @@ public class BluetoothSetupActivity extends BluetoothSetupActivityBase {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_bluetooth_setup);
+        setContentView(R.layout.activity_main);
 
         initViews();
 
@@ -148,7 +148,7 @@ public class BluetoothSetupActivity extends BluetoothSetupActivityBase {
             @Override
             public void handleOnBackPressed() {
                 if (isTaskRoot()) {
-                    new AlertDialog.Builder(BluetoothSetupActivity.this)
+                    new AlertDialog.Builder(MainActivity.this)
                             .setTitle("Выход из приложения")
                             .setMessage(
                                     "Вы действительно хотите выйти?\n\n" +
@@ -157,13 +157,13 @@ public class BluetoothSetupActivity extends BluetoothSetupActivityBase {
                             )
                             .setPositiveButton("Выйти", (dialog, which) -> {
                                 stopBluetoothService();
-                                BluetoothSetupActivity.this.finish();
+                                MainActivity.this.finish();
                             })
                             .setNegativeButton("Отмена", null)
                             .show();
                 } else {
                     setEnabled(false);
-                    BluetoothSetupActivity.this.onBackPressed();
+                    MainActivity.this.onBackPressed();
                 }
             }
         });

@@ -27,7 +27,7 @@ import com.google.android.material.tabs.TabLayoutMediator;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class BluetoothSetupActivityBase extends AppCompatActivity {
+public abstract class MainActivityBase extends AppCompatActivity {
     static final String TAG = "BluetoothSetupActivity";
     static final int REQUEST_BLUETOOTH_PERMISSIONS = 1002;
     static final int REQUEST_MANAGE_ALL_FILES_ACCESS = 1004;
@@ -64,7 +64,6 @@ public abstract class BluetoothSetupActivityBase extends AppCompatActivity {
             }
         }).attach();
     }
-
 
     private static class MyPagerAdapter extends FragmentStateAdapter {
         public MyPagerAdapter(Context context, FragmentManager fm, Lifecycle lifecycle) {
@@ -122,7 +121,7 @@ public abstract class BluetoothSetupActivityBase extends AppCompatActivity {
 
             if (allGranted) {
                 Log.d(TAG, "Bluetooth/Location/Notifications permissions granted");
-                recreate(); // Перезапуск активити для корректной инициализации
+                recreate();
             } else {
                 Toast.makeText(this, "Для работы Bluetooth и уведомлений требуются разрешения", Toast.LENGTH_LONG).show();
             }
@@ -169,7 +168,6 @@ public abstract class BluetoothSetupActivityBase extends AppCompatActivity {
             String[] permissions = permissionsList.toArray(new String[0]);
             requestPermissions(permissions, REQUEST_BLUETOOTH_PERMISSIONS);
         } else {
-            // Все разрешения уже есть — инициализировать компоненты
             initializeComponents();
         }
     }
