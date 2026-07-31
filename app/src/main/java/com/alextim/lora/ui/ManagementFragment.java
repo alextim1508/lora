@@ -1,6 +1,28 @@
 package com.alextim.lora.ui;
 
-import static com.alextim.lora.service.message.BleMessages.*;
+import static com.alextim.lora.service.constants.LoraActions.ACTION_GET_CONFIG_RESPONSE;
+import static com.alextim.lora.service.constants.LoraActions.ACTION_GET_VERSION_RESPONSE;
+import static com.alextim.lora.service.constants.LoraActions.ACTION_SET_CONFIG_RESPONSE;
+import static com.alextim.lora.service.constants.LoraActions.ACTION_STATUS_EVENT;
+import static com.alextim.lora.service.constants.LoraExtras.EXTRA_CHANNEL_INDEX;
+import static com.alextim.lora.service.constants.LoraExtras.EXTRA_DEVICE_ADDRESS;
+import static com.alextim.lora.service.constants.LoraExtras.EXTRA_ERROR_CODE;
+import static com.alextim.lora.service.constants.LoraExtras.EXTRA_LORA_NAME;
+import static com.alextim.lora.service.constants.LoraExtras.EXTRA_POWER_INDEX;
+import static com.alextim.lora.service.constants.LoraExtras.EXTRA_RATE_INDEX;
+import static com.alextim.lora.service.constants.LoraExtras.EXTRA_TEMPERATURE;
+import static com.alextim.lora.service.constants.LoraExtras.EXTRA_VERSION;
+import static com.alextim.lora.service.constants.LoraExtras.EXTRA_VOLTAGE;
+import static com.alextim.lora.service.message.BleMessages.GetConfigurationCommand;
+import static com.alextim.lora.service.message.BleMessages.GetVersionCommand;
+import static com.alextim.lora.service.message.BleMessages.RestartCommand;
+import static com.alextim.lora.service.message.BleMessages.SetConfigurationCommand;
+import static com.alextim.lora.service.protocol.ErrorCode.findTitleByCode;
+import static com.alextim.lora.ui.util.StatusColor.COLOR_ERROR;
+import static com.alextim.lora.ui.util.StatusColor.COLOR_IDLE;
+import static com.alextim.lora.ui.util.StatusColor.COLOR_SENDING;
+import static com.alextim.lora.ui.util.StatusColor.COLOR_SUCCESS;
+import static com.alextim.lora.ui.util.StatusColor.COLOR_TIMEOUT;
 
 import android.Manifest;
 import android.content.BroadcastReceiver;
@@ -31,26 +53,21 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.alextim.lora.R;
 import com.alextim.lora.client.ble.BluetoothService;
-import com.alextim.lora.service.message.LoRaConfigurator;
-import com.alextim.lora.service.message.LoRaConfigurator.LoRaModule;
-import com.alextim.lora.service.message.LoRaConfigurator.ModuleConfig;
+import com.alextim.lora.service.lora.LoraConfig;
+import com.alextim.lora.service.lora.ModuleConfig;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ManagementFragment extends Fragment {
 
     private static final String TAG = "ManagementFragment";
+    private static final byte DEFAULT_CONFIG_VERSION = 0x01;
 
-    private static final int COLOR_IDLE = Color.parseColor("#808080");
-    private static final int COLOR_SENDING = Color.parseColor("#FFA500");
-    private static final int COLOR_SUCCESS = Color.parseColor("#4CAF50");
-    private static final int COLOR_ERROR = Color.parseColor("#F44336");
-    private static final int COLOR_TIMEOUT = Color.parseColor("#FF5722");
-
-    private BluetoothSetupActivity parentActivity;
+    private MainActivity parentActivity;
     private BluetoothService bluetoothService;
     private boolean serviceBound = false;
 
@@ -58,7 +75,7 @@ public class ManagementFragment extends Fragment {
     private ArrayAdapter<String> deviceSpinnerAdapter;
     private String currentActiveDeviceAddress = null;
 
-    private Spinner loraTypeSpinner;
+    private TextView loraNameDisplay;
     private Spinner loraRateIndexSpinner;
     private Spinner loraPowerIndexSpinner;
     private Spinner loraChannelIndexSpinner;
@@ -75,133 +92,173 @@ public class ManagementFragment extends Fragment {
     private TextView statusText;
     private ImageView statusIndicator;
 
+    private final LoraConfig loraConfig = new LoraConfig();
 
-    private final Map<LoRaModule, ModuleConfig> moduleConfigs = new HashMap<>();
-    private final Map<Integer, Integer> rateCodeToSpinnerIndex = new HashMap<>();
-    private final Map<Integer, Integer> powerCodeToSpinnerIndex = new HashMap<>();
-    private final Map<Integer, Integer> channelCodeToSpinnerIndex = new HashMap<>();
-    private final Map<Integer, Integer> spinnerIndexToRateCode = new HashMap<>();
-    private final Map<Integer, Integer> spinnerIndexToPowerCode = new HashMap<>();
-    private final Map<Integer, Integer> spinnerIndexToChannelCode = new HashMap<>();
+    private final Map<String, DeviceManagementState> deviceStateMap = new ConcurrentHashMap<>();
 
-    private LoRaModule currentModule = LoRaModule.LORA_UNKNOWN;
+    private static class DeviceManagementState {
+        String receiverLoraName;
 
-    private Handler timeoutHandler = new Handler(Looper.getMainLooper());
+        final Map<Integer, Integer> rateCodeToSpinnerIndex = new HashMap<>();
+        final Map<Integer, Integer> powerCodeToSpinnerIndex = new HashMap<>();
+        final Map<Integer, Integer> channelCodeToSpinnerIndex = new HashMap<>();
+        final Map<Integer, Integer> spinnerIndexToRateCode = new HashMap<>();
+        final Map<Integer, Integer> spinnerIndexToPowerCode = new HashMap<>();
+        final Map<Integer, Integer> spinnerIndexToChannelCode = new HashMap<>();
+
+        Runnable timeoutRunnable;
+        String pendingCommandType = "";
+        long commandStartTime = 0;
+    }
+
+    private DeviceManagementState activeDeviceState() {
+        return currentActiveDeviceAddress != null
+                ? deviceStateMap.computeIfAbsent(currentActiveDeviceAddress, k -> new DeviceManagementState())
+                : null;
+    }
+
+    private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
     private static final long RESPONSE_TIMEOUT_MS = 5_000;
-    private Runnable timeoutRunnable;
-
-    private String pendingCommandType = "";
-    private long commandStartTime = 0;
 
     private final BroadcastReceiver messageReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            String receivedDeviceAddress = intent.getStringExtra("device_address");
+            String receivedDeviceAddress = intent.getStringExtra(EXTRA_DEVICE_ADDRESS);
 
             Log.d(TAG, "onReceive action " + action + " from device: " + receivedDeviceAddress);
 
-            if (receivedDeviceAddress != null && receivedDeviceAddress.equals(currentActiveDeviceAddress)) {
-                Log.d(TAG, "Processing message for active device: " + receivedDeviceAddress);
-                if ("ACTION_GET_CONFIG_RESPONSE".equals(action)) {
-                    handleGetConfigResponse(intent);
-                } else if ("ACTION_SET_CONFIG_RESPONSE".equals(action)) {
-                    handleSetConfigResponse(intent);
-                } else if ("ACTION_GET_VERSION_RESPONSE".equals(action)) {
-                    handleGetVersionResponse(intent);
-                } else if ("ACTION_STATUS_EVENT".equals(action)) {
-                    handleStatusEvent(intent);
-                } else {
-                    Log.e(TAG, "Unknown message for active device: " + action);
-                }
-            } else {
-                Log.d(TAG, "Ignoring message for inactive device: " + receivedDeviceAddress + ", Active: " + currentActiveDeviceAddress);
+            if (receivedDeviceAddress == null) {
+                Log.w(TAG, "Received message without device address: " + action);
+                return;
             }
-        }
 
-        private void handleGetConfigResponse(Intent intent) {
-            clearPendingCommand();
+            DeviceManagementState state = deviceStateMap.computeIfAbsent(receivedDeviceAddress, k -> new DeviceManagementState());
+            boolean isActive = receivedDeviceAddress.equals(currentActiveDeviceAddress);
 
-            byte loraTypeByte = intent.getByteExtra("loraType", (byte) 0);
-            byte powerIndexByte = intent.getByteExtra("powerIndex", (byte) 0);
-            byte rateIndexByte = intent.getByteExtra("rateIndex", (byte) 0);
-            byte channelIndexByte = intent.getByteExtra("channelIndex", (byte) 0);
-
-            LoRaModule receivedModule = LoRaModule.fromCode(loraTypeByte);
-            int powerCode = powerIndexByte & 0xFF;
-            int rateCode = rateIndexByte & 0xFF;
-            int channelCode = channelIndexByte & 0xFF;
-
-            setLoRaModule(receivedModule);
-            setPowerSelection(powerCode);
-            setRateSelection(rateCode);
-            setChannelSelection(channelCode);
-
-            byte errorCode = intent.getByteExtra("errorCode", (byte) -1);
-            updateResponseCodeLabel(errorCode);
-
-            if (errorCode == 0) {
-                setStatus("Config received", COLOR_SUCCESS);
+            if (ACTION_GET_CONFIG_RESPONSE.equals(action)) {
+                handleGetConfigResponse(intent, state, isActive);
+            } else if (ACTION_SET_CONFIG_RESPONSE.equals(action)) {
+                handleSetConfigResponse(intent, state, isActive);
+            } else if (ACTION_GET_VERSION_RESPONSE.equals(action)) {
+                handleGetVersionResponse(intent, state, isActive);
+            } else if (ACTION_STATUS_EVENT.equals(action)) {
+                handleStatusEvent(intent, isActive);
             } else {
-                setStatus("Config error", COLOR_ERROR);
+                Log.e(TAG, "Unknown message: " + action);
             }
-        }
-
-        private void handleSetConfigResponse(Intent intent) {
-            clearPendingCommand();
-
-            byte errorCode = intent.getByteExtra("errorCode", (byte) -1);
-            updateResponseCodeLabel(errorCode);
-
-            if (errorCode == 0) {
-                setStatus("Config set", COLOR_SUCCESS);
-            } else {
-                setStatus("Set config error", COLOR_ERROR);
-            }
-        }
-
-        private void handleGetVersionResponse(Intent intent) {
-            clearPendingCommand();
-
-            String version = intent.getStringExtra("version");
-            versionLabel.setText("Version: " + version);
-
-            byte errorCode = intent.getByteExtra("errorCode", (byte) -1);
-            updateResponseCodeLabel(errorCode);
-
-            if (errorCode == 0) {
-                setStatus("Version received", COLOR_SUCCESS);
-            } else {
-                setStatus("Version error", COLOR_ERROR);
-            }
-        }
-
-        private void handleStatusEvent(Intent intent) {
-            int power = intent.getIntExtra("voltage", 0);
-            int temperature = intent.getIntExtra("temperature", 0);
-
-            voltageLabel.setText("Voltage: " + power + " V");
-            temperatureLabel.setText("Temperature: " + temperature + " °C");
         }
     };
+
+    private void handleGetConfigResponse(Intent intent, DeviceManagementState state, boolean isActive) {
+        clearPendingCommand(state);
+
+        byte version = intent.getByteExtra(EXTRA_VERSION, (byte) 0);
+        String loraName = intent.getStringExtra(EXTRA_LORA_NAME);
+        byte powerIndexByte = intent.getByteExtra(EXTRA_POWER_INDEX, (byte) 0);
+        byte rateIndexByte = intent.getByteExtra(EXTRA_RATE_INDEX, (byte) 0);
+        byte channelIndexByte = intent.getByteExtra(EXTRA_CHANNEL_INDEX, (byte) 0);
+        byte errorCode = intent.getByteExtra(EXTRA_ERROR_CODE, (byte) -1);
+
+        Log.d(TAG, "handleGetConfigResponse: Received - loraName='" + loraName + "', version=" + version +
+                ", powerIndex=" + powerIndexByte +
+                ", rateIndex=" + rateIndexByte + ", channelIndex=" + channelIndexByte);
+
+        ModuleConfig receivedConfig = null;
+        if (loraName != null) {
+            state.receiverLoraName = loraName;
+            receivedConfig = loraConfig.findByTitle(loraName);
+            if (receivedConfig == null) {
+                Log.w(TAG, "handleGetConfigResponse: Received unknown config key: " + loraName);
+                if (isActive) {
+                    Toast.makeText(getContext(), "Получена неизвестная конфигурация LoRa: " + loraName, Toast.LENGTH_SHORT).show();
+                }
+            }
+        } else {
+            Log.w(TAG, "handleGetConfigResponse: loraName is null, falling back to default.");
+            if (isActive) {
+                Toast.makeText(getContext(), "Получена пустая конфигурация LoRa", Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        int powerCode = powerIndexByte & 0xFF;
+        int rateCode = rateIndexByte & 0xFF;
+        int channelCode = channelIndexByte & 0xFF;
+
+        if (!isActive) {
+            return;
+        }
+
+        setConfig(state, receivedConfig);
+        setPowerSelection(state, powerCode);
+        setRateSelection(state, rateCode);
+        setChannelSelection(state, channelCode);
+
+        Log.d(TAG, "handleGetConfigResponse: Response errorCode=" + errorCode);
+        updateResponseCodeLabel(errorCode);
+
+        if (errorCode == 0) {
+            setStatus("Конфигурация получена", COLOR_SUCCESS);
+        } else {
+            setStatus("Ошибка конфигурации", COLOR_ERROR);
+        }
+    }
+
+    private void handleSetConfigResponse(Intent intent, DeviceManagementState state, boolean isActive) {
+        clearPendingCommand(state);
+
+        if (!isActive) {
+            return;
+        }
+
+        byte errorCode = intent.getByteExtra(EXTRA_ERROR_CODE, (byte) -1);
+        updateResponseCodeLabel(errorCode);
+
+        if (errorCode == 0) {
+            setStatus("Конфигурация установлена", COLOR_SUCCESS);
+        } else {
+            setStatus("Ошибка установки конфигурации", COLOR_ERROR);
+        }
+    }
+
+    private void handleGetVersionResponse(Intent intent, DeviceManagementState state, boolean isActive) {
+        clearPendingCommand(state);
+
+        if (!isActive) {
+            return;
+        }
+
+        String version = intent.getStringExtra(EXTRA_VERSION);
+        versionLabel.setText("Версия: " + version);
+
+        byte errorCode = intent.getByteExtra(EXTRA_ERROR_CODE, (byte) -1);
+        updateResponseCodeLabel(errorCode);
+
+        if (errorCode == 0) {
+            setStatus("Версия получена", COLOR_SUCCESS);
+        } else {
+            setStatus("Ошибка получения версии", COLOR_ERROR);
+        }
+    }
+
+    private void handleStatusEvent(Intent intent, boolean isActive) {
+        if (!isActive) {
+            return;
+        }
+
+        int voltage = intent.getIntExtra(EXTRA_VOLTAGE, 0);
+        int temperature = intent.getIntExtra(EXTRA_TEMPERATURE, 0);
+
+        voltageLabel.setText("Напряжение: " + voltage + " В");
+        temperatureLabel.setText("Температура: " + temperature + " °C");
+    }
 
     @Override
     public void onAttach(@NonNull Context context) {
         super.onAttach(context);
-        if (context instanceof BluetoothSetupActivity) {
-            parentActivity = (BluetoothSetupActivity) context;
+        if (context instanceof MainActivity) {
+            parentActivity = (MainActivity) context;
         }
-
-        initModuleConfigs();
-    }
-
-    private void initModuleConfigs() {
-        moduleConfigs.put(LoRaModule.LORA_XL1278, new LoRaConfigurator.XL1278Config());
-        moduleConfigs.put(LoRaModule.LORA_E32, new LoRaConfigurator.E32Config());
-        moduleConfigs.put(LoRaModule.LORA_E22, new LoRaConfigurator.E22Config());
-        moduleConfigs.put(LoRaModule.LORA_E34, new LoRaConfigurator.E34Config());
-
-        moduleConfigs.put(LoRaModule.LORA_UNKNOWN, new LoRaConfigurator.E32Config());
     }
 
     @Override
@@ -213,15 +270,14 @@ public class ManagementFragment extends Fragment {
         }
 
         IntentFilter filter = new IntentFilter();
-        filter.addAction("ACTION_STATUS_EVENT");
-        filter.addAction("ACTION_GET_CONFIG_RESPONSE");
-        filter.addAction("ACTION_SET_CONFIG_RESPONSE");
-        filter.addAction("ACTION_GET_VERSION_RESPONSE");
+        filter.addAction(ACTION_STATUS_EVENT);
+        filter.addAction(ACTION_GET_CONFIG_RESPONSE);
+        filter.addAction(ACTION_SET_CONFIG_RESPONSE);
+        filter.addAction(ACTION_GET_VERSION_RESPONSE);
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(messageReceiver, filter);
 
-        setStatus("Ready", COLOR_IDLE);
+        setStatus("Готово", COLOR_IDLE);
 
-        // Обновляем список устройств и выбор при возобновлении
         updateDeviceSpinner();
     }
 
@@ -235,15 +291,13 @@ public class ManagementFragment extends Fragment {
         setupSpinners();
         setupClickListeners();
 
-        setLoRaModule(LoRaModule.LORA_UNKNOWN);
-
         return view;
     }
 
     private void initViews(View view) {
         activeDeviceSpinner = view.findViewById(R.id.activeDeviceSpinner);
 
-        loraTypeSpinner = view.findViewById(R.id.loraTypeSpinner);
+        loraNameDisplay = view.findViewById(R.id.loraNameDisplay);
         loraPowerIndexSpinner = view.findViewById(R.id.loraPowerIndexSpinner);
         loraRateIndexSpinner = view.findViewById(R.id.loraRateIndexSpinner);
         loraChannelIndexSpinner = view.findViewById(R.id.loraChannelIndexSpinner);
@@ -262,7 +316,7 @@ public class ManagementFragment extends Fragment {
     }
 
     private void setupDeviceSpinner() {
-        deviceSpinnerAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item);
+        deviceSpinnerAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new ArrayList<>());
         deviceSpinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         activeDeviceSpinner.setAdapter(deviceSpinnerAdapter);
 
@@ -273,37 +327,46 @@ public class ManagementFragment extends Fragment {
                 Log.d(TAG, "Selected device from spinner: " + selectedAddress);
                 currentActiveDeviceAddress = selectedAddress;
 
-                setStatus("Ready", COLOR_IDLE);
-                responseCodeLabel.setText("Code: --");
-                versionLabel.setText("Version: --");
-                voltageLabel.setText("Voltage: -- V");
-                temperatureLabel.setText("Temperature: -- °C");
+                refreshUiFromDeviceState(activeDeviceState());
+                setStatus("Готово", COLOR_IDLE);
             }
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
                 currentActiveDeviceAddress = null;
-                setStatus("No device selected", COLOR_ERROR);
+                setStatus("Устройство не выбрано", COLOR_ERROR);
             }
         });
     }
 
+    private void refreshUiFromDeviceState(DeviceManagementState state) {
+        responseCodeLabel.setText("Код: --");
+        versionLabel.setText("Версия: --");
+        voltageLabel.setText("Напряжение: -- В");
+        temperatureLabel.setText("Температура: -- °C");
+
+        ModuleConfig config = state != null && state.receiverLoraName != null
+                ? loraConfig.findByTitle(state.receiverLoraName)
+                : null;
+        setConfig(state, config);
+    }
+
     private void updateDeviceSpinner() {
         if (bluetoothService != null) {
-            List<String> deviceNames = bluetoothService.getConnectedDeviceNames();
-            Log.d(TAG, "Updating device spinner with " + deviceNames.size() + " devices.");
+            List<String> deviceAddresses = bluetoothService.getConnectedDeviceAddresses();
+            Log.d(TAG, "Updating device spinner with " + deviceAddresses.size() + " devices.");
             deviceSpinnerAdapter.clear();
-            deviceSpinnerAdapter.addAll(deviceNames);
+            deviceSpinnerAdapter.addAll(deviceAddresses);
             deviceSpinnerAdapter.notifyDataSetChanged();
 
-            if (currentActiveDeviceAddress != null && !deviceNames.contains(currentActiveDeviceAddress)) {
+            if (currentActiveDeviceAddress != null && !deviceAddresses.contains(currentActiveDeviceAddress)) {
                 Log.d(TAG, "Previously selected device " + currentActiveDeviceAddress + " is no longer connected. Resetting selection.");
                 currentActiveDeviceAddress = null;
                 activeDeviceSpinner.setSelection(-1);
-                setStatus("Selected device disconnected", COLOR_ERROR);
+                setStatus("Выбранное устройство отключено", COLOR_ERROR);
             }
 
-            if (currentActiveDeviceAddress == null && !deviceNames.isEmpty()) {
+            if (currentActiveDeviceAddress == null && !deviceAddresses.isEmpty()) {
                 activeDeviceSpinner.setSelection(0);
             }
         } else {
@@ -311,85 +374,50 @@ public class ManagementFragment extends Fragment {
             deviceSpinnerAdapter.clear();
             deviceSpinnerAdapter.notifyDataSetChanged();
             currentActiveDeviceAddress = null;
-            setStatus("Service not bound", COLOR_ERROR);
+            setStatus("Сервис не подключен", COLOR_ERROR);
         }
     }
 
     private void setupSpinners() {
-        List<String> loraTypes = new ArrayList<>();
-        for (LoRaModule module : LoRaModule.values()) {
-            loraTypes.add(module.name());
-        }
-
-        ArrayAdapter<String> loraTypeAdapter = new ArrayAdapter<>(requireContext(),
-                android.R.layout.simple_spinner_item, loraTypes);
-        loraTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        loraTypeSpinner.setAdapter(loraTypeAdapter);
-
-
-        ArrayAdapter<String> loraPowerAdapter = new ArrayAdapter<>(requireContext(),
+        ArrayAdapter<String> powerAdapter = new ArrayAdapter<>(requireContext(),
                 android.R.layout.simple_spinner_item, new ArrayList<>());
-        loraPowerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        loraPowerIndexSpinner.setAdapter(loraPowerAdapter);
+        powerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        loraPowerIndexSpinner.setAdapter(powerAdapter);
 
-        ArrayAdapter<String> loraRateAdapter = new ArrayAdapter<>(requireContext(),
+        ArrayAdapter<String> rateAdapter = new ArrayAdapter<>(requireContext(),
                 android.R.layout.simple_spinner_item, new ArrayList<>());
-        loraRateAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        loraRateIndexSpinner.setAdapter(loraRateAdapter);
+        rateAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        loraRateIndexSpinner.setAdapter(rateAdapter);
 
-        ArrayAdapter<String> loraChannelAdapter = new ArrayAdapter<>(requireContext(),
+        ArrayAdapter<String> channelAdapter = new ArrayAdapter<>(requireContext(),
                 android.R.layout.simple_spinner_item, new ArrayList<>());
-        loraChannelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        loraChannelIndexSpinner.setAdapter(loraChannelAdapter);
-
-        loraTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                LoRaModule selectedModule = LoRaModule.values()[position];
-                if (selectedModule != currentModule) {
-                    setLoRaModule(selectedModule);
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
+        channelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        loraChannelIndexSpinner.setAdapter(channelAdapter);
     }
 
-    private void setLoRaModule(LoRaModule module) {
-        currentModule = module;
-
-        int position = module.ordinal();
-        if (position < loraTypeSpinner.getCount()) {
-            loraTypeSpinner.setSelection(position);
-        }
-
-        ModuleConfig config = moduleConfigs.get(module);
-        if (config == null) {
-            config = moduleConfigs.get(LoRaModule.LORA_UNKNOWN);
-        }
-
-        updatePowerSpinner(config);
-        updateRateSpinner(config);
-        updateChannelSpinner(config);
+    private void setConfig(DeviceManagementState state, ModuleConfig config) {
+        loraNameDisplay.setText(config != null ? config.getTitle() : "");
+        updatePowerSpinner(state, config);
+        updateRateSpinner(state, config);
+        updateChannelSpinner(state, config);
+        Log.d(TAG, "Configuration set to: " + config);
     }
 
+    private void updatePowerSpinner(DeviceManagementState state, ModuleConfig config) {
+        state.powerCodeToSpinnerIndex.clear();
+        state.spinnerIndexToPowerCode.clear();
 
-    private void updatePowerSpinner(ModuleConfig config) {
-        powerCodeToSpinnerIndex.clear();
-        spinnerIndexToPowerCode.clear();
-
-        int[] availablePowers = config.getAvailablePowers();
         List<String> powerDescriptions = new ArrayList<>();
+        if (config != null) {
+            int[] availablePowers = config.getAvailablePowers();
+            for (int i = 0; i < availablePowers.length; i++) {
+                int powerCode = availablePowers[i];
+                String description = config.getPowerDescription(powerCode);
+                powerDescriptions.add(description);
 
-        for (int i = 0; i < availablePowers.length; i++) {
-            int powerCode = availablePowers[i];
-            String description = config.getPowerDescription(powerCode);
-            powerDescriptions.add(description);
-
-            powerCodeToSpinnerIndex.put(powerCode, i);
-            spinnerIndexToPowerCode.put(i, powerCode);
+                state.powerCodeToSpinnerIndex.put(powerCode, i);
+                state.spinnerIndexToPowerCode.put(i, powerCode);
+            }
         }
 
         ArrayAdapter<String> adapter = (ArrayAdapter<String>) loraPowerIndexSpinner.getAdapter();
@@ -402,21 +430,21 @@ public class ManagementFragment extends Fragment {
         }
     }
 
+    private void updateRateSpinner(DeviceManagementState state, ModuleConfig config) {
+        state.rateCodeToSpinnerIndex.clear();
+        state.spinnerIndexToRateCode.clear();
 
-    private void updateRateSpinner(ModuleConfig config) {
-        rateCodeToSpinnerIndex.clear();
-        spinnerIndexToRateCode.clear();
-
-        int[] availableRates = config.getAvailableRates();
         List<String> rateDescriptions = new ArrayList<>();
+        if (config != null) {
+            int[] availableRates = config.getAvailableRates();
+            for (int i = 0; i < availableRates.length; i++) {
+                int rateCode = availableRates[i];
+                String description = config.getRateDescription(rateCode);
+                rateDescriptions.add(description);
 
-        for (int i = 0; i < availableRates.length; i++) {
-            int rateCode = availableRates[i];
-            String description = config.getRateDescription(rateCode);
-            rateDescriptions.add(description);
-
-            rateCodeToSpinnerIndex.put(rateCode, i);
-            spinnerIndexToRateCode.put(i, rateCode);
+                state.rateCodeToSpinnerIndex.put(rateCode, i);
+                state.spinnerIndexToRateCode.put(i, rateCode);
+            }
         }
 
         ArrayAdapter<String> adapter = (ArrayAdapter<String>) loraRateIndexSpinner.getAdapter();
@@ -429,20 +457,23 @@ public class ManagementFragment extends Fragment {
         }
     }
 
-    private void updateChannelSpinner(ModuleConfig config) {
-        channelCodeToSpinnerIndex.clear();
-        spinnerIndexToChannelCode.clear();
+    private void updateChannelSpinner(DeviceManagementState state, ModuleConfig config) {
+        state.channelCodeToSpinnerIndex.clear();
+        state.spinnerIndexToChannelCode.clear();
 
-        int[] availableChannels = config.getAvailableChannels();
         List<String> channelDescriptions = new ArrayList<>();
+        if (config != null) {
+            int[] availableChannels = config.getAvailableChannels();
+            if (availableChannels != null) {
+                for (int i = 0; i < availableChannels.length; i++) {
+                    int channelCode = availableChannels[i];
+                    String description = config.getChannelDescription(channelCode);
+                    channelDescriptions.add(description);
 
-        for (int i = 0; i < availableChannels.length; i++) {
-            int channelCode = availableChannels[i];
-            String description = config.getChannelDescription(channelCode);
-            channelDescriptions.add(description);
-
-            channelCodeToSpinnerIndex.put(channelCode, i);
-            spinnerIndexToChannelCode.put(i, channelCode);
+                    state.channelCodeToSpinnerIndex.put(channelCode, i);
+                    state.spinnerIndexToChannelCode.put(i, channelCode);
+                }
+            }
         }
 
         ArrayAdapter<String> adapter = (ArrayAdapter<String>) loraChannelIndexSpinner.getAdapter();
@@ -455,114 +486,118 @@ public class ManagementFragment extends Fragment {
         }
     }
 
-
-    private void setPowerSelection(int powerCode) {
-        Integer spinnerIndex = powerCodeToSpinnerIndex.get(powerCode);
+    private void setPowerSelection(DeviceManagementState state, int powerCode) {
+        Integer spinnerIndex = state.powerCodeToSpinnerIndex.get(powerCode);
         if (spinnerIndex != null && spinnerIndex < loraPowerIndexSpinner.getCount()) {
             loraPowerIndexSpinner.setSelection(spinnerIndex);
-        } else {
-            if (loraPowerIndexSpinner.getCount() > 0) {
-                loraPowerIndexSpinner.setSelection(0);
-            }
+        } else if (loraPowerIndexSpinner.getCount() > 0) {
+            loraPowerIndexSpinner.setSelection(0);
         }
     }
 
-    private void setRateSelection(int rateCode) {
-        Integer spinnerIndex = rateCodeToSpinnerIndex.get(rateCode);
+    private void setRateSelection(DeviceManagementState state, int rateCode) {
+        Integer spinnerIndex = state.rateCodeToSpinnerIndex.get(rateCode);
         if (spinnerIndex != null && spinnerIndex < loraRateIndexSpinner.getCount()) {
             loraRateIndexSpinner.setSelection(spinnerIndex);
-        } else {
-            if (loraRateIndexSpinner.getCount() > 0) {
-                loraRateIndexSpinner.setSelection(0);
-            }
+        } else if (loraRateIndexSpinner.getCount() > 0) {
+            loraRateIndexSpinner.setSelection(0);
         }
     }
 
-    private void setChannelSelection(int channelCode) {
-        Integer spinnerIndex = channelCodeToSpinnerIndex.get(channelCode);
+    private void setChannelSelection(DeviceManagementState state, int channelCode) {
+        Integer spinnerIndex = state.channelCodeToSpinnerIndex.get(channelCode);
         if (spinnerIndex != null && spinnerIndex < loraChannelIndexSpinner.getCount()) {
             loraChannelIndexSpinner.setSelection(spinnerIndex);
-        } else {
-            if (loraChannelIndexSpinner.getCount() > 0) {
-                loraChannelIndexSpinner.setSelection(0);
-            }
+        } else if (loraChannelIndexSpinner.getCount() > 0) {
+            loraChannelIndexSpinner.setSelection(0);
         }
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private void setupClickListeners() {
         sendGetVersionButton.setOnClickListener(v -> {
-            if (serviceBound && bluetoothService != null && currentActiveDeviceAddress != null) {
-
+            if (isActiveDeviceReady()) {
                 bluetoothService.sendMessage(new GetVersionCommand(), currentActiveDeviceAddress);
 
-                Toast.makeText(getContext(), "CMD_GET_VERSION sent to " + currentActiveDeviceAddress, Toast.LENGTH_SHORT).show();
-                setStatus("Getting version...", COLOR_SENDING);
-                setPendingCommand("GET_VERSION");
+                setStatus("Получение версии...", COLOR_SENDING);
+                setPendingCommand(activeDeviceState(), "GET_VERSION");
             } else {
-                String errorMsg = "Service not connected or no device selected";
-                Toast.makeText(getContext(), errorMsg, Toast.LENGTH_SHORT).show();
-                setStatus(errorMsg, COLOR_ERROR);
+                showNotReadyError();
             }
         });
 
         sendRestartButton.setOnClickListener(v -> {
-            if (serviceBound && bluetoothService != null && currentActiveDeviceAddress != null) {
-
+            if (isActiveDeviceReady()) {
                 bluetoothService.sendMessage(new RestartCommand(), currentActiveDeviceAddress);
-
-                Toast.makeText(getContext(), "CMD_RESTART sent to " + currentActiveDeviceAddress, Toast.LENGTH_SHORT).show();
             } else {
-                String errorMsg = "Service not connected or no device selected";
-                Toast.makeText(getContext(), errorMsg, Toast.LENGTH_SHORT).show();
-                setStatus(errorMsg, COLOR_ERROR);
+                showNotReadyError();
             }
         });
 
         sendGetConfigButton.setOnClickListener(v -> {
-            if (serviceBound && bluetoothService != null && currentActiveDeviceAddress != null) {
-
+            if (isActiveDeviceReady()) {
                 bluetoothService.sendMessage(new GetConfigurationCommand(), currentActiveDeviceAddress);
 
-                Toast.makeText(getContext(), "CMD_GET_CONFIGURATION sent to " + currentActiveDeviceAddress, Toast.LENGTH_SHORT).show();
-                setStatus("Getting config...", COLOR_SENDING);
-                setPendingCommand("GET_CONFIG");
+                setStatus("Получение конфигурации...", COLOR_SENDING);
+                setPendingCommand(activeDeviceState(), "GET_CONFIG");
             } else {
-                String errorMsg = "Service not connected or no device selected";
-                Toast.makeText(getContext(), errorMsg, Toast.LENGTH_SHORT).show();
-                setStatus(errorMsg, COLOR_ERROR);
+                showNotReadyError();
             }
         });
 
         sendSetConfigButton.setOnClickListener(v -> {
-            if (serviceBound && bluetoothService != null && currentActiveDeviceAddress != null) {
-                int modulePosition = loraTypeSpinner.getSelectedItemPosition();
-                LoRaModule selectedModule = LoRaModule.values()[modulePosition];
+            if (isActiveDeviceReady()) {
+                DeviceManagementState state = activeDeviceState();
+
+                if (state.receiverLoraName == null) {
+                    Toast.makeText(getContext(), "Сначала прочитайте конфигурацию с устройства (Прочитать конфиг-ю)", Toast.LENGTH_SHORT).show();
+                    setStatus("Имя LoRa неизвестно", COLOR_ERROR);
+                    return;
+                }
 
                 int powerSpinnerIndex = loraPowerIndexSpinner.getSelectedItemPosition();
                 int rateSpinnerIndex = loraRateIndexSpinner.getSelectedItemPosition();
                 int channelSpinnerIndex = loraChannelIndexSpinner.getSelectedItemPosition();
 
-                int powerCode = spinnerIndexToPowerCode.getOrDefault(powerSpinnerIndex, 0);
-                int rateCode = spinnerIndexToRateCode.getOrDefault(rateSpinnerIndex, 0);
-                int channelCode = spinnerIndexToChannelCode.getOrDefault(channelSpinnerIndex, 0);
-
+                int powerCode = state.spinnerIndexToPowerCode.getOrDefault(powerSpinnerIndex, 0);
+                int rateCode = state.spinnerIndexToRateCode.getOrDefault(rateSpinnerIndex, 0);
+                int channelCode = state.spinnerIndexToChannelCode.getOrDefault(channelSpinnerIndex, 0);
 
                 bluetoothService.sendMessage(new SetConfigurationCommand(
-                        (byte) selectedModule.getCode(),
+                        state.receiverLoraName,
+                        DEFAULT_CONFIG_VERSION,
                         (byte) powerCode,
                         (byte) rateCode,
                         (byte) channelCode), currentActiveDeviceAddress);
 
-                Toast.makeText(getContext(), "CMD_SET_CONFIGURATION sent to " + currentActiveDeviceAddress, Toast.LENGTH_SHORT).show();
-                setStatus("Setting config...", COLOR_SENDING);
-                setPendingCommand("SET_CONFIG");
+                setStatus("Установка конфигурации...", COLOR_SENDING);
+                setPendingCommand(state, "SET_CONFIG");
+
+                Log.d(TAG, "Setting config to: " + state.receiverLoraName);
             } else {
-                String errorMsg = "Service not connected or no device selected";
-                Toast.makeText(getContext(), errorMsg, Toast.LENGTH_SHORT).show();
-                setStatus(errorMsg, COLOR_ERROR);
+                showNotReadyError();
             }
         });
+    }
+
+    private boolean isActiveDeviceReady() {
+        return serviceBound && bluetoothService != null && currentActiveDeviceAddress != null
+                && bluetoothService.isReadyToSendMessage(currentActiveDeviceAddress);
+    }
+
+    private void showNotReadyError() {
+        String msg;
+        if (!serviceBound || bluetoothService == null) {
+            msg = "Сервис не подключен";
+        } else if (currentActiveDeviceAddress == null) {
+            msg = "Устройство не выбрано";
+        } else if (!bluetoothService.isConnectedToDevice(currentActiveDeviceAddress)) {
+            msg = "Устройство не подключено";
+        } else {
+            msg = "Устройство еще не готово (поиск сервисов...)";
+        }
+        Toast.makeText(getContext(), msg, Toast.LENGTH_SHORT).show();
+        setStatus(msg, COLOR_ERROR);
     }
 
     private void setStatus(String text, int color) {
@@ -582,53 +617,57 @@ public class ManagementFragment extends Fragment {
         }
     }
 
-    private void setPendingCommand(String commandType) {
-        clearPendingCommand();
+    private void setPendingCommand(DeviceManagementState state, String commandType) {
+        if (state == null)
+            return;
 
-        pendingCommandType = commandType;
-        commandStartTime = System.currentTimeMillis();
+        clearPendingCommand(state);
 
-        timeoutRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (!pendingCommandType.isEmpty() && currentActiveDeviceAddress != null) { // Проверяем адрес
-                    long elapsedTime = System.currentTimeMillis() - commandStartTime;
-                    Log.d(TAG, "Timeout for command: " + pendingCommandType + " to device " + currentActiveDeviceAddress + " after " + elapsedTime + "ms");
+        state.pendingCommandType = commandType;
+        state.commandStartTime = System.currentTimeMillis();
 
-                    setStatus("Timeout: " + pendingCommandType, COLOR_TIMEOUT);
-                    pendingCommandType = "";
+        Runnable timeoutRunnable = () -> {
+            if (!state.pendingCommandType.isEmpty()) {
+                long elapsedTime = System.currentTimeMillis() - state.commandStartTime;
+                Log.d(TAG, "Timeout for command: " + state.pendingCommandType + " after " + elapsedTime + "ms");
+
+                if (state == activeDeviceState()) {
+                    setStatus("Тайм-аут: " + state.pendingCommandType, COLOR_TIMEOUT);
                 }
+                state.pendingCommandType = "";
             }
         };
+        state.timeoutRunnable = timeoutRunnable;
 
         timeoutHandler.postDelayed(timeoutRunnable, RESPONSE_TIMEOUT_MS);
     }
 
-    private void clearPendingCommand() {
-        if (timeoutRunnable != null) {
-            timeoutHandler.removeCallbacks(timeoutRunnable);
-            timeoutRunnable = null;
+    private void clearPendingCommand(DeviceManagementState state) {
+        if (state.timeoutRunnable != null) {
+            timeoutHandler.removeCallbacks(state.timeoutRunnable);
+            state.timeoutRunnable = null;
         }
-        pendingCommandType = "";
-        commandStartTime = 0;
+        state.pendingCommandType = "";
+        state.commandStartTime = 0;
     }
 
     private void updateResponseCodeLabel(byte errorCode) {
-        String text = "Code: " + String.format("0x%02X", errorCode);
-        responseCodeLabel.setText(text);
+        responseCodeLabel.setText("Код: " + findTitleByCode(errorCode));
     }
 
     @Override
     public void onPause() {
         super.onPause();
         LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(messageReceiver);
-        clearPendingCommand();
+
+        for (DeviceManagementState state : deviceStateMap.values()) {
+            clearPendingCommand(state);
+        }
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        clearPendingCommand();
         timeoutHandler.removeCallbacksAndMessages(null);
     }
 }
