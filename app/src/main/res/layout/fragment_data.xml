@@ -1,72 +1,236 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:orientation="vertical">
 
-    <!-- Checkbox для отправки -->
-    <CheckBox
-        android:id="@+id/senderCheckBox"
+    <!-- Spinner выбора активного устройства -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:text="Sender" />
+        android:padding="16dp"
+        android:paddingBottom="0dp"
+        android:orientation="vertical">
 
-    <!-- Spinner для выбора режима -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
-        android:text="Mode:" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Активное устройство:" />
 
-    <Spinner
-        android:id="@+id/testModeSpinner"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp" />
+        <Spinner
+            android:id="@+id/activeDeviceSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" />
 
-    <!-- Кнопка сброса статистики -->
-    <Button
-        android:id="@+id/resetStatsButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:text="Reset Statistics (All Devices)" />
-
-    <!-- Заголовок для списка устройств -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:text="Connected Devices Info:"
-        android:textStyle="bold" />
-
-    <!-- ScrollView для списка информации по устройствам -->
-    <ScrollView
-        android:id="@+id/devicesInfoScrollView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="#F9F9F9"
-        android:padding="8dp">
-
+        <!-- Status Indicator и Response Code -->
         <LinearLayout
-            android:id="@+id/devicesInfoContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Статус:"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="8dp"/>
+
+            <ImageView
+                android:id="@+id/statusIndicator"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:background="@drawable/status_indicator_background"
+                app:srcCompat="@drawable/ic_status_light" />
+
+            <TextView
+                android:id="@+id/statusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Готово"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+        <!-- Response Code Display -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
             <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Код ответа"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/responseCodeLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="4dp"
+                android:text="Код: --"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ScrollView для остального контента -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Блок конфигурации устройства -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:textColor="#000000"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="Конфигурация устройства"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <!-- Transmit mode is fixed to Hardware - the device counts/generates messages
+                     itself, so there is no Software mode to choose here. -->
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Тип устройства"
+                    android:textSize="14sp" />
+
+                <Spinner
+                    android:id="@+id/deviceTypeSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Режим эхо"
+                    android:textSize="14sp" />
+
+                <Spinner
+                    android:id="@+id/echoModeSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp" />
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:hint="Длина пакета (0-31)">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/packageLengthEditText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="number"
+                        android:maxLength="2" />
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/readConfigButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
+                        android:text="Прочитать конфиг-ю" />
+
+                    <Button
+                        android:id="@+id/writeConfigButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_weight="1"
+                        android:text="Записать конфиг-ю" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/resetStatsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:text="Сбросить всю статистику" />
+
+            <!-- Статистика по всем подключенным устройствам отображается всегда, независимо
+                 от выбора в activeDeviceSpinner - выбор устройства нужен только для
+                 чтения/записи конфигурации (см. DataFragment/CLAUDE.md). -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Статистика подключенных устройств"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <!-- Общая гистограмма Sent (синий)/Received (зеленый) сразу по всем подключенным
+                 устройствам - по одной группе столбцов на устройство. Заполняется из
+                 DataFragment#updateDevicesInfoDisplay() через MultiDeviceMessageChartView#setData(). -->
+            <TextView
+                android:id="@+id/allDevicesChartPlaceholder"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="Нет подключенных устройств"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <com.alextim.lora.ui.util.MultiDeviceMessageChartView
+                android:id="@+id/allDevicesMessageChart"
+                android:layout_width="match_parent"
+                android:layout_height="140dp"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
                 android:id="@+id/devicesInfoPlaceholder"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="No devices connected yet..."
-                android:textColor="#888888"
-                android:textSize="12sp" />
+                android:layout_marginBottom="16dp"
+                android:text="Нет подключенных устройств"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/devicesInfoContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:orientation="vertical" />
 
         </LinearLayout>
-
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>
