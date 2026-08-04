@@ -249,8 +249,8 @@ public class ManagementFragment extends Fragment {
         int voltage = intent.getIntExtra(EXTRA_VOLTAGE, 0);
         int temperature = intent.getIntExtra(EXTRA_TEMPERATURE, 0);
 
-        voltageLabel.setText("Напряжение: " + voltage + " В");
-        temperatureLabel.setText("Температура: " + temperature + " °C");
+        voltageLabel.setText("Напряжение: " + voltage/1_000. + " В");
+        temperatureLabel.setText("Температура: " + temperature/10.0 + " °C");
     }
 
     @Override
