@@ -66,6 +66,9 @@ import java.util.function.BiConsumer;
 
 public class BluetoothService extends BluetoothServiceBase {
 
+    private static final long SCAN_DURATION_MS = 5_000;
+    private static final String DEVICE_NAME_PREFIX = "LORA";
+
     private BluetoothAdapter bluetoothAdapter;
 
     private final Map<String, DeviceConnection> activeConnections = new ConcurrentHashMap<>();
@@ -194,7 +197,7 @@ public class BluetoothService extends BluetoothServiceBase {
                 BluetoothDevice device = result.getDevice();
                 if (device.getName() != null &&
                         !scannedDevices.contains(device) &&
-                        device.getName().toUpperCase().startsWith("LORA")) {
+                        device.getName().toUpperCase().startsWith(DEVICE_NAME_PREFIX)) {
 
                     synchronized (scannedDevices) {
                         scannedDevices.add(device);
@@ -215,7 +218,7 @@ public class BluetoothService extends BluetoothServiceBase {
 
             new Thread(() -> {
                 try {
-                    Thread.sleep(4_000);
+                    Thread.sleep(SCAN_DURATION_MS);
                     bluetoothLeScanner.stopScan(scanCallback);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
