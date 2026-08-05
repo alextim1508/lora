@@ -89,11 +89,34 @@ public class ConnectionFragment extends Fragment {
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(connectionStatusReceiver, filter);
     }
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     @Override
     public void onResume() {
         super.onResume();
+
+        updateConnectedDeviceList();
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private void updateConnectedDeviceList() {
         if (parentActivity != null && parentActivity.serviceBound) {
             bluetoothService = parentActivity.bluetoothService;
+
+            List<String> deviceAddresses = bluetoothService.getConnectedDeviceAddresses();
+            Log.d(TAG, "Updating connected devices list with " + deviceAddresses.size());
+
+            connectedDevicesList.clear();
+
+            for (String deviceAddress : deviceAddresses) {
+                String deviceName = bluetoothService.getDeviceName(deviceAddress);
+                addConnectedDevice(deviceAddress, deviceName);
+            }
+        } else {
+            connectedDevicesList.clear();
+
+            requireActivity().runOnUiThread(() -> {
+                connectedDevicesAdapter.notifyDataSetChanged();
+            });
         }
     }
 
@@ -152,7 +175,7 @@ public class ConnectionFragment extends Fragment {
         });
         connectedDevicesListView.setAdapter(connectedDevicesAdapter);
     }
-    
+
     private void addConnectedDevice(String address, String name) {
         DeviceInfo newDevice = new DeviceInfo(address, name);
         if (!connectedDevicesList.contains(newDevice)) {
